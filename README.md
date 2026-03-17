@@ -11,7 +11,7 @@ The goal of this project is to democratize access to high-level game analysis. B
 *   **Language:** Python 3.12+
 *   **Discord Integration:** `discord.py` (Asynchronous command handling, slash commands)
 *   **Data Source:** Riot Games API (MatchV5, SummonerV4, AccountV1)
-*   **Artificial Intelligence:** Google Gemini 2.5 flash (via `google-generativeai`)
+*   **Artificial Intelligence:** Google Gemini 2.5 flash (via `google-genai`)
 *   **Data Processing:** Pandas (Dataframes, aggregation), JSON manipulation
 *   **Serialization:** TOON (Token-Oriented Object Notation) for optimized LLM context usage
 *   **Environment Management:** `python-dotenv` for secure configuration

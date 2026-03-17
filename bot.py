@@ -6,7 +6,7 @@ import requests
 import discord
 from discord import app_commands
 from dotenv import load_dotenv
-import google.generativeai as genai
+import google.genai as genai
 
 load_dotenv()
 
@@ -15,7 +15,7 @@ RIOT_API_KEY = os.getenv("RIOT_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 DEFAULT_GAME_NAME = os.getenv("DEFAULT_GAME_NAME", "")
 DEFAULT_TAG_LINE = os.getenv("DEFAULT_TAG_LINE", "")
-TOTAL_GAMES = int(os.getenv("TOTAL_GAMES", "20"))
+TOTAL_GAMES = int(os.getenv("TOTAL_GAMES", "50"))
 REGION_ROUTING = os.getenv("REGION_ROUTING", "europe")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 PROMPT_PATH = os.getenv("PROMPT_PATH", "prompt_lol.md")
@@ -50,7 +50,7 @@ def get_account_puuid(game_name: str, tag_line: str) -> str:
     return data["puuid"]
 
 
-def get_match_ids(puuid: str, total_games: int = 20) -> list[str]:
+def get_match_ids(puuid: str, total_games: int = 50) -> list[str]:
     match_ids: list[str] = []
     start = 0
 
@@ -242,6 +242,47 @@ def chunk_text(text: str, limit: int = 1900) -> list[str]:
     return chunks
 
 
+def extract_gemini_text(response: genai.types.GenerateContentResponse) -> str:
+    if response.text:
+        return response.text
+
+    text_parts: list[str] = []
+    finish_reasons: list[str] = []
+
+    for candidate in response.candidates or []:
+        if candidate.finish_reason is not None:
+            finish_reasons.append(str(candidate.finish_reason))
+
+        content = candidate.content
+        if not content or not content.parts:
+            continue
+
+        for part in content.parts:
+            if isinstance(part.text, str) and part.text:
+                text_parts.append(part.text)
+
+    if text_parts:
+        return "".join(text_parts)
+
+    details: list[str] = []
+    prompt_feedback = response.prompt_feedback
+    if prompt_feedback is not None:
+        details.append(f"prompt_feedback={prompt_feedback.model_dump(exclude_none=True)}")
+    if finish_reasons:
+        details.append(f"finish_reasons={finish_reasons}")
+    if response.candidates:
+        details.append(f"candidates={len(response.candidates)}")
+
+    detail_suffix = f" Details: {'; '.join(details)}" if details else ""
+    raise ValueError(f"Gemini returned no text content.{detail_suffix}")
+
+
+def generate_gemini_analysis(prompt: str) -> str:
+    genai_client = genai.Client(api_key=GEMINI_API_KEY)
+    response = genai_client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+    return extract_gemini_text(response)
+
+
 class LolCoachBot(discord.Client):
     def __init__(self) -> None:
         intents = discord.Intents.default()
@@ -283,7 +324,7 @@ async def coach_command(
         return
 
     games_data: list[dict] = []
-    for idx, match_id in enumerate(match_ids, start=1):
+    for match_id in match_ids:
         try:
             match_data = await asyncio.to_thread(fetch_match, match_id)
         except Exception:
@@ -300,11 +341,8 @@ async def coach_command(
         return
 
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(GEMINI_MODEL)
         prompt = build_prompt(games_data)
-        response = await asyncio.to_thread(model.generate_content, prompt)
-        analysis_text = response.text or "No response text returned."
+        analysis_text = await asyncio.to_thread(generate_gemini_analysis, prompt)
     except Exception as e:
         await interaction.followup.send(f"Gemini request failed: {e}")
         return
