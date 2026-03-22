@@ -33,6 +33,7 @@ def run_export(game_name, tag_line, total_games):
         puuid,
         headers,
         region_routing=REGION_ROUTING,
+        target_games=total_games,
     )
     export_tabular_files(games_data, game_name, tag_line)
     export_toon_file(games_data, game_name, tag_line)

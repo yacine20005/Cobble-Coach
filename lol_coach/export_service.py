@@ -3,6 +3,7 @@ import time
 import pandas as pd
 from py_toon_format import encode
 
+from .game_mode_filter import is_summoners_rift
 from .match_processing import build_game_record, find_player_participant
 from .riot_api import fetch_match_info
 
@@ -19,6 +20,11 @@ def process_match(
     print(f"Processing match {index}/{total_matches}: {match_id}")
     info = fetch_match_info(match_id, headers, region_routing=region_routing)
     if info is None:
+        return None
+    
+    # Skip non-Summoner's Rift games (ARAM, ARENA, etc.)
+    if not is_summoners_rift(info):
+        print(f"  Skipping match {match_id}: Not a Summoner's Rift game")
         return None
 
     participant = find_player_participant(info, puuid)
@@ -42,12 +48,21 @@ def collect_games_data(
     headers: dict,
     region_routing: str = "europe",
     sleep_seconds: float = 1.5,
+    target_games: int | None = None,
 ) -> list[dict]:
-    """Process all matches and return a list of stats records."""
+    """
+    Process matches and return a list of stats records.
+    If target_games is specified, stops after collecting that many valid games.
+    """
     games_data: list[dict] = []
     total_matches = len(match_ids)
 
     for index, match_id in enumerate(match_ids, start=1):
+        # Stop when we have enough valid Summoner's Rift games
+        if target_games is not None and len(games_data) >= target_games:
+            print(f"Reached target of {target_games} valid games. Stopping.")
+            break
+        
         record = process_match(match_id, index, total_matches, puuid, headers, region_routing=region_routing)
         if record is not None:
             games_data.append(record)

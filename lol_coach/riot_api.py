@@ -30,11 +30,16 @@ def get_match_ids(
     region_routing: str = "europe",
     sleep_seconds: float = 1.0,
 ) -> list[str]:
-    """Fetch up to *total_games* match IDs for the given PUUID in paginated batches."""
+    """
+    Fetch match IDs for the given PUUID in paginated batches.
+    Fetches 2x total_games to account for filtering out non-Summoner's Rift games.
+    """
     match_ids: list[str] = []
     start = 0
+    # Fetch extra matches to ensure we have enough after filtering
+    target = total_games * 2
 
-    while len(match_ids) < total_games:
+    while len(match_ids) < target:
         url = (
             f"https://{region_routing}.api.riotgames.com/lol/match/v5/matches"
             f"/by-puuid/{puuid}/ids?start={start}&count={batch_size}"
@@ -49,7 +54,7 @@ def get_match_ids(
         start += batch_size
         time.sleep(sleep_seconds)
 
-    return match_ids[:total_games]
+    return match_ids[:target]
 
 
 def fetch_match_info(match_id: str, headers: dict, region_routing: str = "europe") -> dict | None:
