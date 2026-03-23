@@ -73,3 +73,21 @@ def fetch_match_info(match_id: str, headers: dict, region_routing: str = "europe
     except (ValueError, KeyError, TypeError) as e:
         print(f"  Unexpected error processing {match_id}: {e}")
         return None
+
+
+def fetch_match_timeline(match_id: str, headers: dict, region_routing: str = "europe") -> dict | None:
+    """Fetch the timeline data for a single match, or return None on failure."""
+    url = f"https://{region_routing}.api.riotgames.com/lol/match/v5/matches/{match_id}/timeline"
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        timeline_data = response.json()
+        if timeline_data is None:
+            print(f"  Warning: No timeline data for {match_id}")
+        return timeline_data
+    except requests.exceptions.RequestException as e:
+        print(f"  Error fetching timeline for {match_id}: {e}")
+        return None
+    except (ValueError, KeyError, TypeError) as e:
+        print(f"  Unexpected error processing timeline for {match_id}: {e}")
+        return None

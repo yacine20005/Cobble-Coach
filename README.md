@@ -38,13 +38,49 @@ The application follows a modular pipeline designed for efficiency and scalabili
 
 ## Key Features
 
-*   **Automated Match History Analysis:** Instantly processes 20 recent games to find trends.
+*   **Automated Match History Analysis:** Instantly processes multiple recent games to find trends.
 *   **Deep Statistical Insight:** Goes beyond basic KDA to analyze:
     *   Economy (Gold/min, Itemization efficiency)
     *   Laning Phase (CS/min, XP differentials, Solo kills)
     *   Team Contribution (Kill Participation, Damage Share, Vision Control)
+*   **Frame-by-Frame Deep Analysis:** Analyze a single match in extreme detail with timeline data:
+    *   Position tracking for all 10 players every minute
+    *   Complete event history (kills, items, objectives, wards)
+    *   Gold/CS differentials throughout the game
+    *   Combat stats evolution (damage, armor, attack speed, etc.)
+    *   Actionable insights with precise timestamps
 *   **Personalized Coaching:** The AI adapts its advice based on the specific champion pool and role played.
 *   **Data Export Utility:** Includes a standalone script (`export.py`) to dump match data into CSV, JSON, and TOON formats for offline analysis or dataset creation.
+
+## Usage
+
+### Discord Bot Commands
+
+*   `/coach [game_name] [tag_line]` - Analyze multiple recent games for trends and patterns
+*   `/deep-coach [game_name] [tag_line] [match_index]` - Deep frame-by-frame analysis of a single game
+    *   `match_index`: 0 = most recent match, 1 = second most recent, etc. (default: 0)
+
+### Standalone Export Tool
+
+Export match data without using the Discord bot:
+
+```bash
+# Export multiple matches overview
+python export.py
+
+# Export detailed frame-by-frame analysis of a single match
+python export.py --detailed --match-index 0
+
+# Override player credentials
+python export.py --detailed --game-name "PlayerName" --tag-line "TAG" --match-index 0
+```
+
+The detailed export generates a comprehensive JSON file with:
+- All 10 players' statistics and timeline data
+- Frame-by-frame snapshots (every minute)
+- Complete event log with timestamps
+- Gold/CS differentials
+- Combat stats evolution
 
 ## Installation & Setup
 
@@ -90,7 +126,6 @@ The application follows a modular pipeline designed for efficiency and scalabili
 
 ## Future Improvements
 
-*   **Frame-by-Frame Analysis:** Implement timeline data fetching to analyze specific skirmishes and teamfight positioning.
 *   **Visualizations:** Generate graphs for Gold/XP leads using `matplotlib` or `seaborn` and embed them in Discord responses.
 *   **Database Integration:** Store user profiles and historical analysis to track improvement over time.
 *   **Multi-Region Support:** Enhanced routing logic to support players from all Riot regions dynamically.

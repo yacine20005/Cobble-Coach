@@ -4,6 +4,10 @@ SUMMONERS_RIFT_QUEUE_IDS = {
     420,  # Ranked Solo/Duo
     430,  # Normal Blind
     440,  # Ranked Flex
+    480,  # Swiftplay
+    490,  # Normal Quickplay
+    700,  # Clash
+    
 }
 
 

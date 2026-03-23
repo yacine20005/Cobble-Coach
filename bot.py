@@ -8,6 +8,7 @@ import google.genai as genai
 
 from lol_coach.riot_api import build_headers, get_puuid, get_match_ids
 from lol_coach.export_service import collect_games_data
+from lol_coach.detailed_analysis import build_detailed_game_analysis
 
 load_dotenv()
 
@@ -20,12 +21,14 @@ TOTAL_GAMES = int(os.getenv("TOTAL_GAMES", "50"))
 REGION_ROUTING = os.getenv("REGION_ROUTING", "europe")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 PROMPT_PATH = os.getenv("PROMPT_PATH", "prompt_lol.md")
+DETAILED_PROMPT_PATH = os.getenv("DETAILED_PROMPT_PATH", "prompt_lol_detailed.md")
 
 
-def read_prompt_template() -> str:
-    if not os.path.exists(PROMPT_PATH):
-        raise FileNotFoundError(f"Prompt file not found: {PROMPT_PATH}")
-    with open(PROMPT_PATH, "r", encoding="utf-8") as f:
+def read_prompt_template(path: str | None = None) -> str:
+    prompt_path = path or PROMPT_PATH
+    if not os.path.exists(prompt_path):
+        raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+    with open(prompt_path, "r", encoding="utf-8") as f:
         return f.read()
 
 
@@ -162,6 +165,84 @@ async def coach_command(
         await interaction.followup.send(f"Gemini request failed: {e}")
         return
 
+    chunks = chunk_text(analysis_text)
+    for chunk in chunks:
+        await interaction.followup.send(chunk)
+
+
+@client.tree.command(name="deep-coach", description="Analyze a single game in depth with frame-by-frame timeline data.")
+@app_commands.describe(
+    game_name="Riot game name",
+    tag_line="Riot tagline",
+    match_index="Match index (0 = most recent, 1 = second most recent, etc.)"
+)
+async def deep_coach_command(
+    interaction: discord.Interaction,
+    game_name: str | None = None,
+    tag_line: str | None = None,
+    match_index: int = 0
+) -> None:
+    await interaction.response.defer(thinking=True)
+    
+    if not DISCORD_BOT_TOKEN or not RIOT_API_KEY or not GEMINI_API_KEY:
+        await interaction.followup.send("Missing API keys. Check .env configuration.")
+        return
+    
+    game_name = game_name or DEFAULT_GAME_NAME
+    tag_line = tag_line or DEFAULT_TAG_LINE
+    
+    if not game_name or not tag_line:
+        await interaction.followup.send(
+            "Please provide game_name and tag_line or set defaults in .env."
+        )
+        return
+    
+    if match_index < 0:
+        await interaction.followup.send("match_index must be >= 0")
+        return
+    
+    try:
+        headers = build_headers(RIOT_API_KEY)
+        puuid = await asyncio.to_thread(get_puuid, game_name, tag_line, headers, REGION_ROUTING)
+        match_ids = await asyncio.to_thread(get_match_ids, puuid, headers, max(20, match_index + 5), 100, REGION_ROUTING)
+    except Exception as e:
+        await interaction.followup.send(f"Failed to fetch match list: {e}")
+        return
+    
+    if match_index >= len(match_ids):
+        await interaction.followup.send(f"match_index {match_index} out of range. Only {len(match_ids)} matches found.")
+        return
+    
+    target_match_id = match_ids[match_index]
+    
+    await interaction.followup.send(f"Analyzing match {target_match_id} (index {match_index})...")
+    
+    detailed_analysis = await asyncio.to_thread(
+        build_detailed_game_analysis,
+        target_match_id,
+        puuid,
+        headers,
+        REGION_ROUTING
+    )
+    
+    if not detailed_analysis:
+        await interaction.followup.send("Failed to build detailed analysis for this match.")
+        return
+    
+    try:
+        prompt_template = read_prompt_template(DETAILED_PROMPT_PATH)
+        data_text = json.dumps(detailed_analysis, ensure_ascii=True)
+        marker = "[DATA]"
+        if marker in prompt_template:
+            prompt = prompt_template.replace(marker, data_text)
+        else:
+            prompt = f"{prompt_template}\n\n{data_text}"
+        
+        analysis_text = await asyncio.to_thread(generate_gemini_analysis, prompt)
+    except Exception as e:
+        await interaction.followup.send(f"Gemini request failed: {e}")
+        return
+    
     chunks = chunk_text(analysis_text)
     for chunk in chunks:
         await interaction.followup.send(chunk)
